@@ -15,17 +15,10 @@ export default function TabLayout() {
             headerTitleStyle: { fontWeight: 'bold' },
         }}>
             <Tabs.Screen
-                name="feed"
+                name="updates"
                 options={{
-                    title: 'Story',
+                    title: 'Updates',
                     tabBarIcon: ({ color }) => <Home color={color} size={24} />,
-                }}
-            />
-            <Tabs.Screen
-                name="scan"
-                options={{
-                    title: 'Scan',
-                    tabBarIcon: ({ color }) => <ScanLine color={color} size={24} />,
                 }}
             />
             <Tabs.Screen
@@ -33,13 +26,6 @@ export default function TabLayout() {
                 options={{
                     title: 'Chats',
                     tabBarIcon: ({ color }) => <MessageCircle color={color} size={24} />,
-                }}
-            />
-            <Tabs.Screen
-                name="search"
-                options={{
-                    title: 'Search',
-                    tabBarIcon: ({ color }) => <Search color={color} size={24} />,
                 }}
             />
             <Tabs.Screen

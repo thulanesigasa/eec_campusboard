@@ -16,54 +16,29 @@ export default function Chats() {
     const router = useRouter();
     const [messages, setMessages] = useState([]);
     const messagesCacheRef = useRef<Record<string, any[]>>({});
-    const [inboxChats, setInboxChats] = useState([]);
-    const [communityStaff, setCommunityStaff] = useState([]);
-    const [communityGroupChat, setCommunityGroupChat] = useState(null);
-    const [groupChats, setGroupChats] = useState([]);
-    const [activeTab, setActiveTab] = useState('Inbox'); // 'Groups', 'Community', 'Inbox'
     const [inputText, setInputText] = useState('');
     const [currentUserId, setCurrentUserId] = useState(null);
-    const [currentUserRole, setCurrentUserRole] = useState(null);
-    const [schoolName, setSchoolName] = useState('Community');
     const [loading, setLoading] = useState(false);
     const { show: showAlert, AlertComponent } = useThemedAlert();
+
+    // Placeholder data for Class Group Chats to ensure the UI looks correct immediately for the demo
+    const CLASS_CHATS = [
+        { id: 'class_1', name: 'ICT Level 2-A', description: 'Information and Communication Tech' },
+        { id: 'class_2', name: 'FEA Level 2-B', description: 'Financial Economics & Accounting' },
+        { id: 'class_3', name: 'ECE Level 3', description: 'Electrical Infrastructure Construction' },
+        { id: 'class_4', name: 'Civil Eng N4', description: 'Civil Engineering and Building' }
+    ];
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (user) {
                 setCurrentUserId(user.uid);
-                fetchSchoolName(user.uid);
             } else {
                 setCurrentUserId(null);
             }
         });
         return () => unsubscribe();
     }, []);
-
-    const fetchSchoolName = async (uid) => {
-        try {
-            const userDoc = await getDoc(doc(db, 'profiles', uid));
-            if (!userDoc.exists()) return;
-            const userData = userDoc.data();
-
-            if (userData.role) setCurrentUserRole(userData.role);
-
-            if (userData.school_id) {
-                const schoolDoc = await getDoc(doc(db, 'schools', userData.school_id));
-                if (schoolDoc.exists()) {
-                    const sName = schoolDoc.data().name;
-                    const initials = sName
-                        .split(' ')
-                        .map((word: string) => word[0])
-                        .join('')
-                        .toUpperCase();
-                    setSchoolName(`${initials} Staff`);
-                }
-            }
-        } catch (e) {
-            console.error('School name fetch error:', e.message);
-        }
-    };
 
     useEffect(() => {
         const onBackPress = () => {
@@ -95,146 +70,20 @@ export default function Chats() {
                 setMessages([]);
             }
             fetchMessages();
-        } else {
-            fetchAllData();
         }
 
         // Set up real-time listeners for the active view
-        let unsubscribeDirect = () => { };
         let unsubscribeGroup = () => { };
 
-        if (isValidUserId) {
-            // We have a direct chat user -> fetch direct messages
-            const qDir1 = query(collection(db, 'direct_messages'), where('sender_id', '==', currentUserId), where('receiver_id', '==', userId));
-            const qDir2 = query(collection(db, 'direct_messages'), where('sender_id', '==', userId), where('receiver_id', '==', currentUserId));
-
-            // To properly do OR queries in Firestore realtime, it's often easier to just trigger a re-fetch,
-            // or listen to both queries and merge. For simplicity and robustness, we'll re-run fetchMessages on changes.
-            unsubscribeDirect = onSnapshot(collection(db, 'direct_messages'), (snapshot) => {
-                fetchMessages();
-            });
-        } else if (isValidChatId) {
+        if (isValidChatId) {
             unsubscribeGroup = onSnapshot(query(collection(db, 'group_messages'), where('group_id', '==', chatId)), (snapshot) => {
                 fetchMessages();
             });
-        } else {
-            // Main screen listener: wait for new messages that might create a new inbox item
-            unsubscribeDirect = onSnapshot(query(collection(db, 'direct_messages'), where('receiver_id', '==', currentUserId)), () => fetchAllData());
-            unsubscribeGroup = onSnapshot(query(collection(db, 'group_messages')), () => fetchAllData()); // A bit heavy, consider refining for production
         }
-
         return () => {
-            unsubscribeDirect();
             unsubscribeGroup();
         };
-    }, [userId, chatId, currentUserId, activeTab]);
-
-    const fetchAllData = async () => {
-        setLoading(true);
-        // Fetch Inbox first to get active contacts
-        const activeContacts = await fetchInbox();
-        await Promise.all([fetchGroups(), fetchCommunity(activeContacts)]);
-        setLoading(false);
-    };
-
-    const fetchGroups = async () => {
-        try {
-            const q = query(collection(db, 'chat_participants'), where('user_id', '==', currentUserId));
-            const snapshot = await getDocs(q);
-
-            const groupPromises = snapshot.docs.map(async (docSnap) => {
-                const partData = docSnap.data();
-                const groupDoc = await getDoc(doc(db, 'chat_groups', partData.group_id));
-                if (groupDoc.exists()) {
-                    return { id: groupDoc.id, ...groupDoc.data() };
-                }
-                return null;
-            });
-
-            const resolvedGroups = await Promise.all(groupPromises);
-            const groups = resolvedGroups.filter((g: any) => g && g.name !== 'Community');
-
-            setGroupChats(groups);
-        } catch (e) {
-            console.error('Groups fetch error:', e.message);
-        }
-    };
-
-    const fetchCommunity = async (activeContactIds = []) => {
-        try {
-            // Fetch all staff members except current user and those already in activeContactIds
-            const qStaff = query(collection(db, 'profiles'), where('role', 'in', ['Teacher', 'Principal', 'Vice Principal']));
-            const snapshot = await getDocs(qStaff);
-
-            const staffList = snapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() }))
-                .filter(staff => staff.id !== currentUserId && !activeContactIds.includes(staff.id));
-
-            setCommunityStaff(staffList);
-
-            // Fetch the 'Community' group chat for this user
-            const qCommPart = query(collection(db, 'chat_participants'), where('user_id', '==', currentUserId));
-            const partSnap = await getDocs(qCommPart);
-
-            for (const partDoc of partSnap.docs) {
-                const groupId = partDoc.data().group_id;
-                const groupDoc = await getDoc(doc(db, 'chat_groups', groupId));
-                if (groupDoc.exists() && groupDoc.data().name === 'Community') {
-                    setCommunityGroupChat({ id: groupDoc.id, ...groupDoc.data() });
-                    break;
-                }
-            }
-        } catch (e) {
-            console.error('Community fetch error:', e.message);
-        }
-    };
-
-    const fetchInbox = async () => {
-        try {
-            // Firestore doesn't inherently support OR conditions well without 'in' lists. 
-            // Better to split sender and receiver queries and merge.
-            const messagesRef = collection(db, 'direct_messages');
-            const qSent = query(messagesRef, where('sender_id', '==', currentUserId), orderBy('created_at', 'desc'));
-            const qReceived = query(messagesRef, where('receiver_id', '==', currentUserId), orderBy('created_at', 'desc'));
-
-            const [sentSnap, receivedSnap] = await Promise.all([getDocs(qSent), getDocs(qReceived)]);
-
-            const allMessages = [
-                ...sentSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-                ...receivedSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-            ].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-            const conversations = [];
-            const seen = new Set();
-            const contactIds = [];
-
-            for (const msg of allMessages) {
-                const contactId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
-                if (contactId && !seen.has(contactId)) {
-                    seen.add(contactId);
-                    contactIds.push(contactId);
-
-                    // Fetch profile info to attach
-                    const profileDoc = await getDoc(doc(db, 'profiles', contactId));
-                    let profileData = profileDoc.exists() ? profileDoc.data() : { first_name: 'Unknown', surname: 'User' };
-
-                    conversations.push({
-                        ...msg,
-                        contact: {
-                            ...profileData,
-                            id: contactId
-                        }
-                    });
-                }
-            }
-
-            setInboxChats(conversations);
-            return contactIds; // Return for Community filtering
-        } catch (e) {
-            console.error('Inbox fetch error:', e.message);
-            return [];
-        }
-    };
+    }, [userId, chatId, currentUserId]);
 
     const fetchMessages = async () => {
         const cleanUserId = userId && userId !== 'undefined' && userId !== '' ? userId : null;
@@ -305,18 +154,13 @@ export default function Chats() {
             if (chatId && chatId !== 'undefined' && chatId !== '') {
                 payload.group_id = chatId;
                 await addDoc(collection(db, 'group_messages'), payload);
-            } else if (userId && userId !== 'undefined' && userId !== '') {
-                payload.receiver_id = userId;
-                await addDoc(collection(db, 'direct_messages'), payload);
             }
 
             setInputText('');
 
             // Manually re-fetch messages immediately after sending
-            if ((chatId && chatId !== 'undefined' && chatId !== '') || (userId && userId !== 'undefined' && userId !== '')) {
+            if (chatId && chatId !== 'undefined' && chatId !== '') {
                 fetchMessages();
-            } else {
-                fetchAllData();
             }
         } catch (e) {
             showAlert('Error', 'Failed to send message: ' + e.message, 'error');
@@ -364,7 +208,7 @@ export default function Chats() {
     const renderInboxItem = ({ item }) => (
         <TouchableOpacity style={styles.inboxCard} onPress={() => router.push({ pathname: '/(tabs)/chats', params: { chatId: item.id, chatName: item.name, userId: '' } })}>
             <View style={styles.inboxAvatar}>
-                <Users color="#9CC222" size={24} />
+                <Users color={colors.accent} size={24} />
             </View>
             <View style={styles.inboxContent}>
                 <Text style={styles.inboxName}>{item.name}</Text>
@@ -376,116 +220,33 @@ export default function Chats() {
     if (!userId && !chatId) {
         return (
             <View style={styles.container}>
-                <View style={styles.tabContainer}>
-                    {['Groups', 'Community', 'Inbox']
-                        .filter(tab => {
-                            if (tab === 'Groups' && (currentUserRole === 'Principal' || currentUserRole === 'Vice Principal')) return false;
-                            if (tab === 'Community' && currentUserRole === 'Parent') return false;
-                            return true;
-                        })
-                        .map(tab => (
-                            <TouchableOpacity
-                                key={tab}
-                                style={[styles.tab, activeTab === tab && styles.tabActive]}
-                                onPress={() => setActiveTab(tab)}
-                            >
-                                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-                                    {tab === 'Community' ? schoolName : tab}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                <View style={[styles.header, { borderBottomWidth: 0 }]}>
+                    <Text style={[styles.headerTitle, { fontSize: 24 }]}>Class Chats</Text>
+                    <Text style={{ color: colors.textSecondary, marginTop: 4 }}>Connect with your module groups</Text>
                 </View>
 
-                {activeTab === 'Inbox' && (
-                    <FlatList
-                        data={inboxChats}
-                        keyExtractor={item => item.id.toString()}
-                        renderItem={({ item }) => {
-                            const displayName = item.contact.title
-                                ? `${item.contact.title} ${item.contact.surname}`
-                                : `${item.contact.first_name} ${item.contact.surname}`;
-                            return (
-                                <TouchableOpacity
-                                    style={styles.inboxCard}
-                                    onPress={() => router.push({ pathname: '/(tabs)/chats', params: { userId: item.contact.id, name: displayName, chatId: '' } })}
-                                >
-                                    <View style={styles.inboxAvatar}>
-                                        <MessageCircle color="#9CC222" size={24} />
-                                    </View>
-                                    <View style={styles.inboxContent}>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                            <Text style={styles.inboxName}>{displayName}</Text>
-                                            <Text style={styles.inboxTime}>{format(new Date(item.created_at), 'HH:mm')}</Text>
-                                        </View>
-                                        <Text style={styles.inboxSub} numberOfLines={1}>{item.content}</Text>
-                                    </View>
-                                </TouchableOpacity>
-                            );
-                        }}
-                        ListEmptyComponent={() => (
-                            <View style={styles.emptyContainer}>
-                                <MessageCircle size={48} color={colors.border} />
-                                <Text style={styles.emptyText}>No messages yet.</Text>
+                <FlatList
+                    data={CLASS_CHATS}
+                    keyExtractor={item => item.id}
+                    renderItem={({ item }) => (
+                        <TouchableOpacity
+                            style={styles.inboxCard}
+                            onPress={() => router.push({ pathname: '/(tabs)/chats', params: { chatId: item.id, chatName: item.name, userId: '' } })}
+                        >
+                            <View style={styles.inboxAvatar}>
+                                <Users color={colors.accent} size={24} />
                             </View>
-                        )}
-                    />
-                )}
-
-                {activeTab === 'Groups' && (
-                    <FlatList
-                        data={groupChats}
-                        keyExtractor={item => item.id.toString()}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={styles.inboxCard}
-                                onPress={() => router.push({ pathname: '/(tabs)/chats', params: { chatId: item.id, chatName: item.name, userId: '' } })}
-                            >
-                                <View style={styles.inboxAvatar}>
-                                    <Users color="#9CC222" size={24} />
-                                </View>
-                                <View style={styles.inboxContent}>
-                                    <Text style={styles.inboxName}>{item.name}</Text>
-                                    <Text style={styles.inboxSub}>Group Chat</Text>
-                                </View>
-                            </TouchableOpacity>
-                        )}
-                        ListEmptyComponent={() => (
-                            <View style={styles.emptyContainer}>
-                                <Users size={48} color={colors.border} />
-                                <Text style={styles.emptyText}>You haven't joined any groups.</Text>
+                            <View style={styles.inboxContent}>
+                                <Text style={styles.inboxName}>{item.name}</Text>
+                                <Text style={styles.inboxSub}>{item.description}</Text>
                             </View>
-                        )}
-                    />
-                )}
-
-                {activeTab === 'Community' && (
-                    <ScrollView contentContainerStyle={{ padding: 16 }}>
-                        {communityGroupChat && (
-                            <TouchableOpacity
-                                style={{
-                                    flexDirection: 'row',
-                                    padding: 16,
-                                    borderWidth: 1,
-                                    borderColor: '#9CC222',
-                                    borderRadius: 16,
-                                    alignItems: 'center',
-                                    backgroundColor: 'rgba(156,194,34,0.05)',
-                                    marginBottom: 16
-                                }}
-                                onPress={() => router.push({ pathname: '/(tabs)/chats', params: { chatId: communityGroupChat.id, chatName: schoolName, userId: '' } })}
-                            >
-                                <View style={[styles.inboxAvatar, { backgroundColor: 'rgba(156,194,34,0.15)' }]}>
-                                    <Users color="#9CC222" size={24} />
-                                </View>
-                                <View style={styles.inboxContent}>
-                                    <Text style={styles.inboxName}>{schoolName} Chat</Text>
-                                    <Text style={styles.inboxSub}>All Staff Members</Text>
-                                </View>
-                                <MessageCircle color="#9CC222" size={20} />
-                            </TouchableOpacity>
-                        )}
-                    </ScrollView>
-                )}
+                            <View style={{ backgroundColor: colors.accent, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
+                                <Text style={{ color: '#000', fontSize: 12, fontWeight: 'bold' }}>Join</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
+                    contentContainerStyle={{ padding: 16 }}
+                />
             </View>
         );
     }
@@ -536,7 +297,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     messageWrapperMine: { justifyContent: 'flex-end' },
     messageWrapperTheirs: { justifyContent: 'flex-start' },
     messageBubble: { maxWidth: '80%', padding: 12, borderRadius: 16 },
-    messageBubbleMine: { backgroundColor: '#9CC222', borderBottomRightRadius: 4 },
+    messageBubbleMine: { backgroundColor: colors.accent, borderBottomRightRadius: 4 },
     messageBubbleTheirs: { backgroundColor: colors.border, borderBottomLeftRadius: 4 },
     messageText: { fontSize: 16 },
     messageTextMine: { color: '#000' },
@@ -547,18 +308,22 @@ const createStyles = (colors: any) => StyleSheet.create({
     timeTextTheirs: { color: colors.textSecondary },
     inputBar: { flexDirection: 'row', padding: 12, backgroundColor: colors.border, borderTopWidth: 1, borderTopColor: colors.border, alignItems: 'flex-end' },
     input: { flex: 1, backgroundColor: colors.border, borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, maxHeight: 100, fontSize: 16, color: colors.text },
-    sendBtn: { backgroundColor: '#9CC222', width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 12, alignSelf: 'flex-end' },
+    sendBtn: { backgroundColor: colors.accent, width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 12, alignSelf: 'flex-end' },
     senderName: { fontSize: 13, fontWeight: 'bold', color: colors.text, marginBottom: 2 },
     senderRole: { fontSize: 11, fontWeight: '600', color: colors.accent, marginBottom: 4 },
     tabContainer: { flexDirection: 'row', backgroundColor: colors.border, padding: 4, borderRadius: 12, margin: 16 },
     tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-    tabActive: { backgroundColor: '#9CC222' },
+    tabActive: { backgroundColor: colors.accent },
     tabText: { fontSize: 14, color: colors.textSecondary, fontWeight: 'bold' },
     tabTextActive: { color: '#000' },
-    inboxTime: { fontSize: 12, color: colors.textSecondary },
-    inboxCard: { flexDirection: 'row', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.cardLight, alignItems: 'center' },
-    inboxAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(156,194,34,0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+    inboxCard: {
+        flexDirection: 'row', padding: 16, marginBottom: 16,
+        backgroundColor: colors.border, borderRadius: 16,
+        borderWidth: 1, borderColor: colors.cardLight,
+        alignItems: 'center'
+    },
+    inboxAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(21,107,118,0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
     inboxContent: { flex: 1 },
-    inboxName: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 2 },
+    inboxName: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
     inboxSub: { fontSize: 14, color: colors.textSecondary }
 });
