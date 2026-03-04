@@ -18,27 +18,49 @@ export default function Chats() {
     const messagesCacheRef = useRef<Record<string, any[]>>({});
     const [inputText, setInputText] = useState('');
     const [currentUserId, setCurrentUserId] = useState(null);
+    const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
+    const [myGroups, setMyGroups] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const { show: showAlert, AlertComponent } = useThemedAlert();
 
-    // Placeholder data for Class Group Chats to ensure the UI looks correct immediately for the demo
-    const CLASS_CHATS = [
-        { id: 'class_1', name: 'ICT Level 2-A', description: 'Information and Communication Tech' },
-        { id: 'class_2', name: 'FEA Level 2-B', description: 'Financial Economics & Accounting' },
-        { id: 'class_3', name: 'ECE Level 3', description: 'Electrical Infrastructure Construction' },
-        { id: 'class_4', name: 'Civil Eng N4', description: 'Civil Engineering and Building' }
-    ];
-
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setCurrentUserId(user.uid);
-            } else {
-                setCurrentUserId(null);
+        if (!currentUserId) {
+            setCurrentUserProfile(null);
+            setMyGroups([]);
+            return;
+        }
+
+        // 1. Listen to the user's profile to get `registered_courses`
+        const unsubProfile = onSnapshot(doc(db, 'profiles', currentUserId), async (docSnap) => {
+            if (docSnap.exists()) {
+                const pd = docSnap.data();
+                setCurrentUserProfile(pd);
+
+                // 2. Fetch the actual groups matching these courses
+                if (pd.registered_courses && pd.registered_courses.length > 0) {
+                    try {
+                        const groupsRef = collection(db, 'chat_groups');
+                        // In a real app we'd use `where('course_id', 'in', pd.registered_courses)` 
+                        // But since 'in' is limited to 10 array items, pulling all and filtering is safer for now
+                        const gSnap = await getDocs(groupsRef);
+                        const matched = gSnap.docs
+                            .map(d => ({ id: d.id, ...d.data() }))
+                            // @ts-ignore
+                            .filter(g => pd.registered_courses.includes(g.course_id));
+                        setMyGroups(matched);
+                    } catch (e) {
+                        console.error('Failed fetching groups', e);
+                    }
+                } else {
+                    setMyGroups([]);
+                }
             }
+        }, (error) => {
+            console.warn('Chats profile onSnapshot error:', error.message);
         });
-        return () => unsubscribe();
-    }, []);
+
+        return () => unsubProfile();
+    }, [currentUserId]);
 
     useEffect(() => {
         const onBackPress = () => {
@@ -78,6 +100,8 @@ export default function Chats() {
         if (isValidChatId) {
             unsubscribeGroup = onSnapshot(query(collection(db, 'group_messages'), where('group_id', '==', chatId)), (snapshot) => {
                 fetchMessages();
+            }, (error) => {
+                console.warn('Group messages onSnapshot error:', error.message);
             });
         }
         return () => {
@@ -221,32 +245,53 @@ export default function Chats() {
         return (
             <View style={styles.container}>
                 <View style={[styles.header, { borderBottomWidth: 0 }]}>
-                    <Text style={[styles.headerTitle, { fontSize: 24 }]}>Class Chats</Text>
-                    <Text style={{ color: colors.textSecondary, marginTop: 4 }}>Connect with your module groups</Text>
+                    <Text style={[styles.headerTitle, { fontSize: 24 }]}>My Courses</Text>
+                    <Text style={{ color: colors.textSecondary, marginTop: 4 }}>Group chats for your registered subjects</Text>
                 </View>
 
-                <FlatList
-                    data={CLASS_CHATS}
-                    keyExtractor={item => item.id}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={styles.inboxCard}
-                            onPress={() => router.push({ pathname: '/(tabs)/chats', params: { chatId: item.id, chatName: item.name, userId: '' } })}
-                        >
-                            <View style={styles.inboxAvatar}>
-                                <Users color={colors.accent} size={24} />
-                            </View>
-                            <View style={styles.inboxContent}>
-                                <Text style={styles.inboxName}>{item.name}</Text>
-                                <Text style={styles.inboxSub}>{item.description}</Text>
-                            </View>
-                            <View style={{ backgroundColor: colors.accent, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 }}>
-                                <Text style={{ color: '#000', fontSize: 12, fontWeight: 'bold' }}>Join</Text>
-                            </View>
-                        </TouchableOpacity>
-                    )}
-                    contentContainerStyle={{ padding: 16 }}
-                />
+                {loading ? (
+                    <View style={styles.emptyContainer}>
+                        <Users size={40} color={colors.textSecondary} />
+                        <Text style={{ color: colors.textSecondary, marginTop: 12 }}>Loading classes...</Text>
+                    </View>
+                ) : myGroups.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <Users size={48} color={colors.border} />
+                        <Text style={styles.emptyText}>You are not registered for any courses yet.</Text>
+                        <Text style={[styles.emptyText, { fontSize: 13, marginTop: 8 }]}>Wait for an admin to assign your profile to a subject.</Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={myGroups}
+                        keyExtractor={item => item.id}
+                        renderItem={({ item }) => {
+                            const isAdmin = item.admins?.includes(currentUserId);
+                            return (
+                                <TouchableOpacity
+                                    style={styles.inboxCard}
+                                    onPress={() => router.push({ pathname: '/(tabs)/chats', params: { chatId: item.id, chatName: item.name, userId: '' } })}
+                                >
+                                    <View style={styles.inboxAvatar}>
+                                        <Users color={colors.accent} size={24} />
+                                    </View>
+                                    <View style={styles.inboxContent}>
+                                        <Text style={styles.inboxName}>{item.name}</Text>
+                                        <Text style={styles.inboxSub}>{item.description}</Text>
+                                    </View>
+                                    {isAdmin ? (
+                                        <View style={{ backgroundColor: 'rgba(204, 33, 40, 0.1)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8, borderWidth: 1, borderColor: colors.danger }}>
+                                            <Text style={{ color: colors.danger, fontSize: 11, fontWeight: 'bold' }}>Admin</Text>
+                                        </View>
+                                    ) : null}
+                                    <View style={{ backgroundColor: colors.accent, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6 }}>
+                                        <Text style={{ color: '#000', fontSize: 13, fontWeight: 'bold' }}>Chat</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            )
+                        }}
+                        contentContainerStyle={{ padding: 16 }}
+                    />
+                )}
             </View>
         );
     }

@@ -49,7 +49,7 @@ export default function RootLayout() {
         if (!hasToken && !inAuthGroup && !isTestAuth) {
             router.replace('/login');
         } else if ((hasToken || isTestAuth) && inAuthGroup) {
-            router.replace('/feed');
+            router.replace('/(tabs)/updates');
         }
     }, [hasToken, isLoading, segments]);
 
