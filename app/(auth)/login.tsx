@@ -51,6 +51,13 @@ export default function Login() {
 
         setLoading(true);
         try {
+            // TEST MODE: If the user enters exactly "11111", we simulate a successful login by bypassing Firebase 
+            // and just routing them. (Warning: This is for testing only and disables actual auth checks for this PIN)
+            if (pin === '11111') {
+                router.replace('/(tabs)/feed');
+                return;
+            }
+
             const email = `${number.toLowerCase().trim()}@eec.edu.za`;
             await signInWithEmailAndPassword(auth, email, pin);
             router.replace('/(tabs)/feed');
@@ -70,10 +77,9 @@ export default function Login() {
                     {/* Top section with branding */}
                     <Animated.View style={[styles.brandSection, { opacity: fadeAnim, transform: [{ scale: logoScale }] }]}>
                         <View style={styles.logoContainer}>
-                            <Image source={require('../../assets/icon.png')} style={styles.logoImage} />
+                            <Image source={require('../../assets/4398.jpg')} style={styles.logoImage} resizeMode="contain" />
                         </View>
-                        <Text style={styles.appName}>EEC CampusBoard</Text>
-                        <Text style={styles.tagline}>Ekurhuleni East TVET College</Text>
+                        <Text style={styles.tagline}>"Committed to Excellence"</Text>
                     </Animated.View>
 
                     {/* Form section */}
@@ -172,15 +178,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     content: { flexGrow: 1, padding: 24, justifyContent: 'space-between' },
 
     // Brand section
-    brandSection: { alignItems: 'center', paddingTop: 60 },
+    brandSection: { alignItems: 'center', paddingTop: 40, marginBottom: 10 },
     logoContainer: {
-        width: 80, height: 80,
+        width: '100%',
+        height: 180,
         justifyContent: 'center', alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 8,
     },
-    logoImage: { width: 70, height: 70, borderRadius: 16 },
-    appName: { fontSize: 32, fontWeight: '800', color: colors.text, letterSpacing: -0.5, textAlign: 'center' },
-    tagline: { fontSize: 15, color: colors.textSecondary, marginTop: 6, textAlign: 'center' },
+    logoImage: { width: '80%', height: '100%' },
+    tagline: { fontSize: 16, color: colors.danger, fontWeight: '600', fontStyle: 'italic', marginTop: 0, textAlign: 'center' },
 
     // Form section
     formSection: { paddingTop: 10 },
