@@ -4,11 +4,11 @@
     "slug": "eec_campusboard",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/4398.jpg",
+    "icon": "./assets/4398.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/4398.jpg",
+      "image": "./assets/4398.png",
       "resizeMode": "contain",
       "backgroundColor": "#0D0D0D"
     },
@@ -18,7 +18,7 @@
     "android": {
       "package": "com.eec.campusboard",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/4398.jpg",
+        "foregroundImage": "./assets/4398.png",
         "backgroundColor": "#0D0D0D"
       },
       "edgeToEdgeEnabled": true,
@@ -29,7 +29,7 @@
     },
     "scheme": "eec_campusboard",
     "web": {
-      "favicon": "./assets/4398.jpg"
+      "favicon": "./assets/4398.png"
     },
     "plugins": [
       "expo-router",

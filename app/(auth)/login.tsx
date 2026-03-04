@@ -54,6 +54,7 @@ export default function Login() {
             // TEST MODE: If the user enters exactly "11111", we simulate a successful login by bypassing Firebase 
             // and just routing them. (Warning: This is for testing only and disables actual auth checks for this PIN)
             if (pin === '11111') {
+                (global as any).isTestAuth = true;
                 router.replace('/(tabs)/feed');
                 return;
             }
@@ -77,9 +78,9 @@ export default function Login() {
                     {/* Top section with branding */}
                     <Animated.View style={[styles.brandSection, { opacity: fadeAnim, transform: [{ scale: logoScale }] }]}>
                         <View style={styles.logoContainer}>
-                            <Image source={require('../../assets/4398.jpg')} style={styles.logoImage} resizeMode="contain" />
+                            <Image source={require('../../assets/4398.png')} style={styles.logoImage} resizeMode="contain" />
                         </View>
-                        <Text style={styles.tagline}>"Committed to Excellence"</Text>
+                        <Text style={styles.tagline}>CampusBoard</Text>
                     </Animated.View>
 
                     {/* Form section */}
