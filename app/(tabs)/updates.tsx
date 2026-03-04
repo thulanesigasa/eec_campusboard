@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../components/ThemeProvider';
 import { Megaphone, Calendar as CalendarIcon, Clock } from 'lucide-react-native';
 import { auth, db } from '../../lib/firebase';
@@ -14,22 +15,32 @@ export default function Updates() {
     useEffect(() => {
         // In a real app we'd fetch from Firestore `updates` collection.
         // For demonstration (or if no DB docs exist yet), we use placeholder data
+        const loadPlaceholders = () => {
+            setUpdates([
+                { id: '1', title: 'Campus Closed for Maintenance', content: 'The ICT block will be closed this Friday for scheduled server maintenance. All classes will be online.', date: 'Today, 08:30 AM', type: 'important' },
+                { id: '2', title: 'NSFAS Allowances Processed', content: 'NSFAS allowances for the current month have been processed and distributed. Please check your accounts.', date: 'Yesterday, 14:15 PM', type: 'info' },
+                { id: '3', title: 'Exam Timetables Released', content: 'The final examination timetables are now available on the student portal.', date: 'Oct 24, 09:00 AM', type: 'academic' },
+            ]);
+            setLoading(false);
+        };
+
         const fetchUpdates = async () => {
+            if ((global as any).isTestAuth) {
+                loadPlaceholders();
+                return;
+            }
+
             try {
                 const q = query(collection(db, 'campus_updates'), orderBy('created_at', 'desc'));
                 const snap = await getDocs(q);
                 if (!snap.empty) {
                     setUpdates(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 } else {
-                    // Placeholder data for the new EEC CampusBoard
-                    setUpdates([
-                        { id: '1', title: 'Campus Closed for Maintenance', content: 'The ICT block will be closed this Friday for scheduled server maintenance. All classes will be online.', date: 'Today, 08:30 AM', type: 'important' },
-                        { id: '2', title: 'NSFAS Allowances Processed', content: 'NSFAS allowances for the current month have been processed and distributed. Please check your accounts.', date: 'Yesterday, 14:15 PM', type: 'info' },
-                        { id: '3', title: 'Exam Timetables Released', content: 'The final examination timetables are now available on the student portal.', date: 'Oct 24, 09:00 AM', type: 'academic' },
-                    ]);
+                    loadPlaceholders();
                 }
             } catch (err) {
                 console.error(err);
+                loadPlaceholders(); // Fallback to placeholders on permission denied or error
             } finally {
                 setLoading(false);
             }
