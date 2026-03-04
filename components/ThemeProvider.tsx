@@ -2,9 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const lightColors = {
-    background: '#f4f6f8',
-    card: '#ffffff',
-    cardLight: '#f9f9f9',
+    background: '#FFFFFF', // User requested white background
+    card: '#f9f9f9',
+    cardLight: '#f0f0f0',
     text: '#275d64', // Dark Teal text
     textSecondary: 'rgba(39,93,100,0.6)',
     border: 'rgba(39,93,100,0.1)',
