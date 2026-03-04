@@ -2,26 +2,26 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const lightColors = {
-    background: '#f2f2f7',
+    background: '#f4f6f8',
     card: '#ffffff',
     cardLight: '#f9f9f9',
-    text: '#000000',
-    textSecondary: 'rgba(0,0,0,0.6)',
-    border: 'rgba(0,0,0,0.1)',
-    primary: '#141414',
-    accent: '#8EB32D', // Darker green for contrast on light mode
-    danger: '#ff3b30'
+    text: '#275d64', // Dark Teal text
+    textSecondary: 'rgba(39,93,100,0.6)',
+    border: 'rgba(39,93,100,0.1)',
+    primary: '#156B76', // Teal
+    accent: '#156B76', // Teal
+    danger: '#CC2128' // Red
 };
 
 export const darkColors = {
-    background: '#0D0D0D',
-    card: '#141414',
-    cardLight: 'rgba(255,255,255,0.04)',
+    background: '#0d181a',
+    card: '#152528',
+    cardLight: 'rgba(255,255,255,0.05)',
     text: '#ffffff',
     textSecondary: 'rgba(255,255,255,0.6)',
     border: 'rgba(255,255,255,0.1)',
     primary: '#ffffff',
-    accent: '#9CC222',
+    accent: '#F4B436', // Yellow for dark mode pop
     danger: '#ff6b6b'
 };
 
